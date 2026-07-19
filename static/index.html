@@ -352,7 +352,7 @@
         <p class="hint">Calories/macros accept a number or a range like <code>2000-2200</code>. Charts use the midpoint.</p>
         <div class="row">
           <label>Weight (kg)
-            <input type="number" name="weight" step="0.1" inputmode="decimal" />
+            <input type="text" name="weight" inputmode="decimal" placeholder="65,5 or 65.5" autocomplete="off" />
           </label>
           <label>Calories
             <input type="text" name="calories" inputmode="decimal" placeholder="2100 or 2000-2200" autocomplete="off" />
@@ -371,7 +371,7 @@
             <input type="text" name="fat" inputmode="decimal" placeholder="70 or 60-80" autocomplete="off" />
           </label>
           <label>Sleep (hours)
-            <input type="number" name="sleep_hours" step="0.1" min="0" max="24" inputmode="decimal" />
+            <input type="text" name="sleep_hours" inputmode="decimal" placeholder="7,5 or 7.5" autocomplete="off" />
           </label>
         </div>
         <label>Sleep quality (1–5)
@@ -467,7 +467,19 @@
 
     function num(v) {
       if (v === "" || v == null) return null;
-      const n = Number(String(v).replace(",", "."));
+      let s = String(v).trim().replace(/\s/g, "");
+      if (!s) return null;
+      // allow 65,5 and 65.5 (and 1.234,5 / 1,234.5)
+      if (s.includes(",") && s.includes(".")) {
+        if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+          s = s.replace(/\./g, "").replace(",", ".");
+        } else {
+          s = s.replace(/,/g, "");
+        }
+      } else if (s.includes(",")) {
+        s = s.replace(",", ".");
+      }
+      const n = Number(s);
       return Number.isFinite(n) ? n : null;
     }
 
@@ -690,7 +702,7 @@
             <input type="text" class="p-name" value="${escapeHtml(p.name)}" />
           </label>
           <label>Weight goal (kg)
-            <input type="number" class="p-weight" step="0.1" inputmode="decimal" value="${p.weight ?? ""}" />
+            <input type="text" class="p-weight" inputmode="decimal" value="${p.weight ?? ""}" placeholder="65,5" autocomplete="off" />
           </label>
           <div class="mini-label">Training day</div>
           <div class="row">
