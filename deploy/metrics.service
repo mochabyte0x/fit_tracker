@@ -1,0 +1,19 @@
+[Unit]
+Description=Metrics Tracker
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/metrics
+Environment=DATA_DIR=/opt/metrics/data
+Environment=PORT=8000
+# Optional password — uncomment and set, or use EnvironmentFile:
+# Environment=PASSWORD=changeme
+# EnvironmentFile=-/opt/metrics/.env
+ExecStart=/opt/metrics/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
