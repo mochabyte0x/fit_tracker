@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f0ebe3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Metrics</title>
+  <link rel="manifest" href="/static/manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script>
+    // apply before paint to avoid flash
+    (() => {
+      const saved = localStorage.getItem("metrics-theme");
+      const theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #f0ebe3;
+      --glow1: #d8e6dc;
+      --glow2: #f0dcc8;
+      --ink: #1a2332;
+      --muted: #5c6570;
+      --line: #c9c0b2;
+      --accent: #2f6f4e;
+      --accent2: #c45c26;
+      --card: #faf7f2;
+      --field: #ffffff;
+      --toast-fg: #ffffff;
+      --chart-tick: #5c6570;
+      --chart-grid: #e4ddd2;
+      --radius: 12px;
+      --font: "Segoe UI", system-ui, sans-serif;
+    }
+    [data-theme="dark"] {
+      --bg: #12171e;
+      --glow1: #1a2e24;
+      --glow2: #2a2218;
+      --ink: #e8e4dc;
+      --muted: #9aa3ad;
+      --line: #2e3744;
+      --accent: #4a9b6e;
+      --accent2: #e08a4f;
+      --card: #1a222d;
+      --field: #0f1419;
+      --toast-fg: #12171e;
+      --chart-tick: #9aa3ad;
+      --chart-grid: #2e3744;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, var(--glow1) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, var(--glow2) 0%, transparent 50%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 1rem 1rem 3rem;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+    .header-tools {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .range {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .range button, button.primary, button.ghost {
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .range button.active {
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      padding: 0.65rem 1.1rem;
+      width: 100%;
+      font-weight: 600;
+    }
+    button.ghost { background: transparent; }
+    #themeToggle { min-width: 3.5rem; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (min-width: 560px) {
+      .stats { grid-template-columns: repeat(4, 1fr); }
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.75rem 0.85rem;
+    }
+    .stat .label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .stat .value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .panel h2 {
+      margin: 0 0 0.85rem;
+      font-size: 1rem;
+    }
+    .charts { display: grid; gap: 1rem; }
+    .chart-box { position: relative; height: 200px; }
+    form {
+      display: grid;
+      gap: 0.75rem;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    input, textarea, select {
+      font: inherit;
+      color: var(--ink);
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .actions a {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-left: auto;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: var(--toast-fg);
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 10;
+    }
+    .toast.show { opacity: 1; }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0 0 0.75rem;
+    }
+    .stat .sub {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+      font-weight: 500;
+    }
+    .stat .sub.over { color: var(--accent2); }
+    .stat .sub.under { color: var(--accent); }
+    .row3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 520px) {
+      .row3 { grid-template-columns: 1fr; }
+    }
+    #aiPaste { min-height: 64px; font-size: 0.9rem; }
+    .actions-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .actions .primary { width: auto; flex: 1; }
+    details.phase-edit {
+      margin-top: 0.85rem;
+      border-top: 1px solid var(--line);
+      padding-top: 0.75rem;
+    }
+    details.phase-edit summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    .phase-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.65rem;
+      background: var(--field);
+    }
+    .phase-card h3 {
+      margin: 0 0 0.6rem;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .phase-card h3 button {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.55rem;
+    }
+    .mini-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin: 0.55rem 0 0.35rem;
+    }
+    #phaseSummary, #todayTarget {
+      background: var(--field);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.7rem;
+      margin: 0.65rem 0 0;
+    }
+    #todayTarget { margin: 0 0 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Metrics</h1>
+      <div class="header-tools">
+        <button type="button" class="ghost" id="themeToggle" aria-label="Toggle color theme">Dark</button>
+        <div class="range" id="range">
+          <button data-days="7">7d</button>
+          <button data-days="30" class="active">30d</button>
+          <button data-days="90">90d</button>
+          <button data-days="365">1y</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="panel">
+      <h2>Phase</h2>
+      <p class="hint">Cutting, lean bulk, etc. Training targets apply when the day’s training field is filled; otherwise rest targets.</p>
+      <label>Active phase
+        <select id="phaseSelect"></select>
+      </label>
+      <p class="hint" id="phaseSummary">No phase yet — open Edit phases to add one.</p>
+      <details class="phase-edit" id="phaseEditor">
+        <summary>Edit phases</summary>
+        <div id="phaseList"></div>
+        <div class="actions" style="margin-top:0.5rem; flex-wrap:wrap">
+          <button type="button" class="ghost" id="addPhase">Add phase</button>
+          <button type="button" class="ghost" id="addPresets">Add presets</button>
+          <button type="button" class="ghost" id="savePhases">Save phases</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel charts">
+      <div>
+        <h2>Weight</h2>
+        <div class="chart-box"><canvas id="chartWeight"></canvas></div>
+      </div>
+      <div>
+        <h2>Calories</h2>
+        <div class="chart-box"><canvas id="chartCalories"></canvas></div>
+      </div>
+      <div>
+        <h2>Sleep</h2>
+        <div class="chart-box"><canvas id="chartSleep"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Log day</h2>
+      <p class="hint">Fill fields, or paste an AI summary and hit Fill.</p>
+      <form id="form">
+        <label>Date
+          <input type="date" name="date" required />
+        </label>
+        <label>Paste from AI
+          <textarea id="aiPaste" placeholder="e.g. 2000-2200 kcal, 130-150g protein, 170-190g carbs, 60-80g fat"></textarea>
+        </label>
+        <div class="actions">
+          <button type="button" class="ghost" id="applyPaste">Fill from paste</button>
+          <button type="button" class="ghost" id="copyYesterday">Copy yesterday</button>
+        </div>
+        <p class="hint" id="todayTarget">Target today: —</p>
+        <p class="hint">Calories/macros accept a number or a range like <code>2000-2200</code>. Charts use the midpoint.</p>
+        <div class="row">
+          <label>Weight (kg)
+            <input type="number" name="weight" step="0.1" inputmode="decimal" />
+          </label>
+          <label>Calories
+            <input type="text" name="calories" inputmode="decimal" placeholder="2100 or 2000-2200" autocomplete="off" />
+          </label>
+        </div>
+        <div class="row">
+          <label>Protein (g)
+            <input type="text" name="protein" inputmode="decimal" placeholder="140 or 130-150" autocomplete="off" />
+          </label>
+          <label>Carbs (g)
+            <input type="text" name="carbs" inputmode="decimal" placeholder="180 or 170-190" autocomplete="off" />
+          </label>
+        </div>
+        <div class="row">
+          <label>Fat (g)
+            <input type="text" name="fat" inputmode="decimal" placeholder="70 or 60-80" autocomplete="off" />
+          </label>
+          <label>Sleep (hours)
+            <input type="number" name="sleep_hours" step="0.1" min="0" max="24" inputmode="decimal" />
+          </label>
+        </div>
+        <label>Sleep quality (1–5)
+          <select name="sleep_quality">
+            <option value="">—</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </label>
+        <label>Training
+          <textarea name="training" placeholder="e.g. strength / upper — bench 80kg 3x5"></textarea>
+        </label>
+        <label>Notes
+          <textarea name="notes" placeholder="optional"></textarea>
+        </label>
+        <p class="hint" id="dayStatus" style="margin:0"></p>
+        <div class="actions-wrap">
+          <div class="actions">
+            <button type="submit" class="primary" id="saveBtn">Save</button>
+          </div>
+          <div class="actions">
+            <button type="button" class="ghost" id="clearDay">Delete day</button>
+            <a href="/api/export.csv">Export CSV</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const RANGE_KEY = "metrics-range-days";
+    const THEME_KEY = "metrics-theme";
+    let rangeDays = Number(localStorage.getItem(RANGE_KEY)) || 30;
+    let charts = {};
+
+    function currentTheme() {
+      return document.documentElement.getAttribute("data-theme") || "light";
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem(THEME_KEY, theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === "dark" ? "#12171e" : "#f0ebe3";
+      $("#themeToggle").textContent = theme === "dark" ? "Light" : "Dark";
+    }
+
+    function cssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function todayISO() {
+      const d = new Date();
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function fromISO(days) {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1));
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function dateRange(from, to) {
+      const out = [];
+      const d = new Date(from + "T12:00:00");
+      const end = new Date(to + "T12:00:00");
+      while (d <= end) {
+        const off = d.getTimezoneOffset();
+        const local = new Date(d.getTime() - off * 60000);
+        out.push(local.toISOString().slice(0, 10));
+        d.setDate(d.getDate() + 1);
+      }
+      return out;
+    }
+
+    function toast(msg) {
+      const el = $("#toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 1800);
+    }
+
+    const RANGE_FIELDS = ["calories", "protein", "carbs", "fat"];
+
+    function num(v) {
+      if (v === "" || v == null) return null;
+      const n = Number(String(v).replace(",", "."));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmt(v, suffix = "") {
+      if (v == null || v === "") return "—";
+      return `${v}${suffix}`;
+    }
+
+    /** Parse "2100" or "2000-2200" / "2000 – 2200" / "2000 to 2200". */
+    function parseRangeField(raw, asInt) {
+      const s = String(raw ?? "").trim();
+      if (!s) return { value: null, min: null, max: null };
+      const m = s.match(/^(\d+(?:[.,]\d+)?)\s*(?:[-–—]|to)\s*(\d+(?:[.,]\d+)?)$/i);
+      if (m) {
+        let lo = Number(m[1].replace(",", "."));
+        let hi = Number(m[2].replace(",", "."));
+        if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+          throw new Error("Invalid range: " + s);
+        }
+        if (lo > hi) [lo, hi] = [hi, lo];
+        const mid = (lo + hi) / 2;
+        if (asInt) {
+          return { value: Math.round(mid), min: Math.round(lo), max: Math.round(hi) };
+        }
+        return {
+          value: Math.round(mid * 10) / 10,
+          min: Math.round(lo * 10) / 10,
+          max: Math.round(hi * 10) / 10,
+        };
+      }
+      const n = num(s);
+      if (n == null) throw new Error("Invalid number: " + s);
+      return {
+        value: asInt ? Math.round(n) : n,
+        min: null,
+        max: null,
+      };
+    }
+
+    function formatRangeField(day, key) {
+      const lo = day[`${key}_min`];
+      const hi = day[`${key}_max`];
+      if (lo != null && hi != null) return `${lo}-${hi}`;
+      return day[key] ?? "";
+    }
+
+    function dayHasData(day) {
+      return [
+        "weight", "calories", "protein", "carbs", "fat",
+        "sleep_hours", "sleep_quality", "training", "notes",
+        "calories_min", "protein_min", "carbs_min", "fat_min",
+      ].some((k) => day[k] != null && day[k] !== "");
+    }
+
+    async function api(path, opts) {
+      const res = await fetch(path, { credentials: "same-origin", ...opts });
+      if (!res.ok) {
+        const text = await res.text();
+        let detail = text || res.statusText || `HTTP ${res.status}`;
+        try {
+          const body = JSON.parse(text);
+          if (body.detail) detail = Array.isArray(body.detail) ? body.detail[0].msg || text : body.detail;
+        } catch {}
+        throw new Error(detail);
+      }
+      if (res.status === 204) return null;
+      const ct = res.headers.get("content-type") || "";
+      return ct.includes("json") ? res.json() : res.text();
+    }
+
+    function lineChart(canvasId, labels, data, color) {
+      if (charts[canvasId]) charts[canvasId].destroy();
+      const ctx = document.getElementById(canvasId);
+      charts[canvasId] = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            data,
+            borderColor: color,
+            backgroundColor: color + "33",
+            fill: true,
+            tension: 0.25,
+            pointRadius: 2,
+            spanGaps: true,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 6, color: cssVar("--chart-tick") }, grid: { display: false } },
+            y: { ticks: { color: cssVar("--chart-tick") }, grid: { color: cssVar("--chart-grid") } },
+          },
+        },
+      });
+    }
+
+    let phasesCfg = { active_id: null, phases: [] };
+
+    function goalSub(avg, goal, delta, unit = "") {
+      if (goal == null) return "";
+      const target = `target ${goal}${unit}`;
+      if (delta == null || avg == null) return `<span class="sub">${target}</span>`;
+      const sign = delta > 0 ? "+" : "";
+      const cls = delta > 0 ? "over" : delta < 0 ? "under" : "";
+      return `<span class="sub ${cls}">${target} (${sign}${delta}${unit})</span>`;
+    }
+
+    function activePhase() {
+      return phasesCfg.phases.find((p) => p.id === phasesCfg.active_id) || phasesCfg.phases[0] || null;
+    }
+
+    function targetsForTraining(trained) {
+      const phase = activePhase();
+      if (!phase) return { calories: null, protein: null, kind: "—", phase: null };
+      const t = trained ? (phase.training || {}) : (phase.rest || {});
+      return {
+        calories: t.calories ?? null,
+        protein: t.protein ?? null,
+        kind: trained ? "training day" : "rest day",
+        phase,
+      };
+    }
+
+    function renderStats(s) {
+      const phase = s.phase;
+      const weightGoal = phase && phase.weight != null ? phase.weight : null;
+      const items = [
+        ["Avg weight", fmt(s.avg_weight, " kg"), goalSub(s.avg_weight, weightGoal, s.weight_vs_goal, " kg")],
+        ["Weight Δ", s.weight_change == null ? "—" : `${s.weight_change > 0 ? "+" : ""}${s.weight_change} kg`, ""],
+        ["Avg kcal",
+          s.avg_target_calories != null && s.avg_calories != null
+            ? `${fmt(s.avg_calories)} / ${fmt(s.avg_target_calories)}`
+            : fmt(s.avg_calories),
+          goalSub(s.avg_calories, s.avg_target_calories, s.calories_vs_goal)],
+        ["Avg sleep", fmt(s.avg_sleep, " h"), ""],
+        ["Avg protein",
+          s.avg_target_protein != null && s.avg_protein != null
+            ? `${fmt(s.avg_protein)} / ${fmt(s.avg_target_protein)} g`
+            : fmt(s.avg_protein, " g"),
+          goalSub(s.avg_protein, s.avg_target_protein, s.protein_vs_goal, " g")],
+        ["Trained", fmt(s.training_days, " d"), ""],
+        ["Logged", fmt(s.days_logged, " d"), ""],
+      ];
+      $("#stats").innerHTML = items.map(([label, value, sub]) =>
+        `<div class="stat"><span class="label">${label}</span><span class="value">${value}</span>${sub || ""}</div>`
+      ).join("");
+    }
+
+    function syncPhaseSelect() {
+      const sel = $("#phaseSelect");
+      sel.innerHTML = phasesCfg.phases.length
+        ? phasesCfg.phases.map((p) =>
+            `<option value="${p.id}" ${p.id === phasesCfg.active_id ? "selected" : ""}>${escapeHtml(p.name)}</option>`
+          ).join("")
+        : `<option value="">No phases</option>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderPhaseSummary() {
+      const phase = activePhase();
+      const el = $("#phaseSummary");
+      if (!phase) {
+        el.textContent = "No phase yet — open Edit phases to add one.";
+        return;
+      }
+      const tr = phase.training || {};
+      const re = phase.rest || {};
+      const w = phase.weight != null ? ` · weight goal ${phase.weight} kg` : "";
+      el.textContent =
+        `${phase.name}: training ${fmt(tr.calories)} kcal / ${fmt(tr.protein, " g")} · ` +
+        `rest ${fmt(re.calories)} kcal / ${fmt(re.protein, " g")}${w}`;
+    }
+
+    function updateTodayTarget() {
+      const trained = !!($("#form").training.value || "").trim();
+      const t = targetsForTraining(trained);
+      const el = $("#todayTarget");
+      if (!t.phase) {
+        el.textContent = "Target today: — (set a phase first)";
+        return;
+      }
+      el.textContent =
+        `Target today (${t.kind}, ${t.phase.name}): ` +
+        `${fmt(t.calories)} kcal · ${fmt(t.protein, " g protein")}`;
+    }
+
+    function emptyPhase(name) {
+      return {
+        id: Math.random().toString(16).slice(2, 10),
+        name,
+        weight: null,
+        training: { calories: null, protein: null },
+        rest: { calories: null, protein: null },
+      };
+    }
+
+    function renderPhaseEditor() {
+      const list = $("#phaseList");
+      if (!phasesCfg.phases.length) {
+        list.innerHTML = `<p class="hint">No phases yet. Add one or use presets.</p>`;
+        return;
+      }
+      list.innerHTML = phasesCfg.phases.map((p, idx) => `
+        <div class="phase-card" data-idx="${idx}">
+          <h3>
+            <span>Phase</span>
+            <button type="button" class="ghost phase-del" data-idx="${idx}">Delete</button>
+          </h3>
+          <label>Name
+            <input type="text" class="p-name" value="${escapeHtml(p.name)}" />
+          </label>
+          <label>Weight goal (kg)
+            <input type="number" class="p-weight" step="0.1" inputmode="decimal" value="${p.weight ?? ""}" />
+          </label>
+          <div class="mini-label">Training day</div>
+          <div class="row">
+            <label>Calories
+              <input type="number" class="p-tr-cal" step="1" inputmode="numeric" value="${p.training?.calories ?? ""}" />
+            </label>
+            <label>Protein (g)
+              <input type="number" class="p-tr-pro" step="1" inputmode="decimal" value="${p.training?.protein ?? ""}" />
+            </label>
+          </div>
+          <div class="mini-label">Rest day</div>
+          <div class="row">
+            <label>Calories
+              <input type="number" class="p-re-cal" step="1" inputmode="numeric" value="${p.rest?.calories ?? ""}" />
+            </label>
+            <label>Protein (g)
+              <input type="number" class="p-re-pro" step="1" inputmode="decimal" value="${p.rest?.protein ?? ""}" />
+            </label>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function readPhaseEditor() {
+      return [...document.querySelectorAll(".phase-card")].map((card) => {
+        const idx = Number(card.dataset.idx);
+        const prev = phasesCfg.phases[idx] || emptyPhase("Phase");
+        return {
+          id: prev.id,
+          name: card.querySelector(".p-name").value.trim() || "Phase",
+          weight: num(card.querySelector(".p-weight").value),
+          training: {
+            calories: num(card.querySelector(".p-tr-cal").value),
+            protein: num(card.querySelector(".p-tr-pro").value),
+          },
+          rest: {
+            calories: num(card.querySelector(".p-re-cal").value),
+            protein: num(card.querySelector(".p-re-pro").value),
+          },
+        };
+      });
+    }
+
+    function applyPhasesCfg(cfg) {
+      phasesCfg = cfg;
+      if (phasesCfg.phases.length && !phasesCfg.active_id) {
+        phasesCfg.active_id = phasesCfg.phases[0].id;
+      }
+      syncPhaseSelect();
+      renderPhaseSummary();
+      renderPhaseEditor();
+      updateTodayTarget();
+    }
+
+    function shiftISO(iso, days) {
+      const d = new Date(iso + "T12:00:00");
+      d.setDate(d.getDate() + days);
+      const off = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - off * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function series(dates, byDate, key) {
+      return dates.map((d) => {
+        const row = byDate.get(d);
+        return row && row[key] != null ? row[key] : null;
+      });
+    }
+
+    async function refresh() {
+      const from = fromISO(rangeDays);
+      const to = todayISO();
+      const q = `from=${from}&to=${to}`;
+      const [days, stats, phases] = await Promise.all([
+        api(`/api/days?${q}`),
+        api(`/api/stats?${q}`),
+        api("/api/phases"),
+      ]);
+      applyPhasesCfg(phases);
+      renderStats(stats);
+      const dates = dateRange(from, to);
+      const byDate = new Map(days.map((d) => [d.date, d]));
+      const labels = dates.map((d) => d.slice(5));
+      lineChart("chartWeight", labels, series(dates, byDate, "weight"), cssVar("--accent"));
+      lineChart("chartCalories", labels, series(dates, byDate, "calories"), cssVar("--accent2"));
+      lineChart("chartSleep", labels, series(dates, byDate, "sleep_hours"), currentTheme() === "dark" ? "#7eb0d6" : "#3d5a80");
+    }
+
+    function fillForm(day) {
+      const f = $("#form");
+      f.date.value = day.date || todayISO();
+      f.weight.value = day.weight ?? "";
+      for (const key of RANGE_FIELDS) {
+        f[key].value = formatRangeField(day, key);
+      }
+      f.sleep_hours.value = day.sleep_hours ?? "";
+      f.training.value = day.training ?? "";
+      f.notes.value = day.notes ?? "";
+      f.sleep_quality.value = day.sleep_quality ?? "";
+      updateTodayTarget();
+
+      if (!dayHasData(day)) {
+        $("#dayStatus").textContent = "No entry yet — fill what you have and save.";
+        return;
+      }
+      const mids = RANGE_FIELDS
+        .filter((k) => day[`${k}_min`] != null && day[`${k}_max`] != null)
+        .map((k) => `${k} mid ${day[k]}`);
+      $("#dayStatus").textContent = mids.length
+        ? `Editing saved entry. Ranges stored; charts use: ${mids.join(", ")}.`
+        : "Editing saved entry for this day.";
+    }
+
+    async function loadDay() {
+      const day = $("#form").date.value || todayISO();
+      const data = await api(`/api/days/${day}`);
+      fillForm(data);
+    }
+
+    function syncRangeButtons() {
+      $("#range").querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", Number(b.dataset.days) === rangeDays);
+      });
+    }
+
+    $("#form").date.value = todayISO();
+    syncRangeButtons();
+    applyTheme(currentTheme());
+
+    $("#themeToggle").addEventListener("click", () => {
+      applyTheme(currentTheme() === "dark" ? "light" : "dark");
+      refresh().catch((err) => toast(String(err.message || err)));
+    });
+
+    $("#range").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-days]");
+      if (!btn) return;
+      rangeDays = Number(btn.dataset.days);
+      localStorage.setItem(RANGE_KEY, String(rangeDays));
+      syncRangeButtons();
+      refresh().catch((err) => toast(String(err.message || err)));
+    });
+
+    $("#form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const btn = $("#saveBtn");
+      const day = f.date.value;
+      let body;
+      try {
+        const cal = parseRangeField(f.calories.value, true);
+        const pro = parseRangeField(f.protein.value, false);
+        const carb = parseRangeField(f.carbs.value, false);
+        const fat = parseRangeField(f.fat.value, false);
+        body = {
+          weight: num(f.weight.value),
+          calories: cal.value,
+          calories_min: cal.min,
+          calories_max: cal.max,
+          protein: pro.value,
+          protein_min: pro.min,
+          protein_max: pro.max,
+          carbs: carb.value,
+          carbs_min: carb.min,
+          carbs_max: carb.max,
+          fat: fat.value,
+          fat_min: fat.min,
+          fat_max: fat.max,
+          sleep_hours: num(f.sleep_hours.value),
+          sleep_quality: num(f.sleep_quality.value),
+          training: f.training.value.trim() || null,
+          notes: f.notes.value.trim() || null,
+        };
+      } catch (err) {
+        toast(String(err.message || err));
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const saved = await api(`/api/days/${day}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        fillForm(saved?.deleted ? { date: day } : saved);
+        toast("Saved");
+        await refresh();
+      } catch (err) {
+        toast(String(err.message || err));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $("#clearDay").addEventListener("click", async () => {
+      const day = $("#form").date.value;
+      if (!confirm(`Delete ${day}?`)) return;
+      try {
+        await api(`/api/days/${day}`, { method: "DELETE" });
+        fillForm({ date: day });
+        toast("Deleted");
+        await refresh();
+      } catch (err) {
+        toast(String(err.message || err));
+      }
+    });
+
+    $("#applyPaste").addEventListener("click", async () => {
+      const text = $("#aiPaste").value.trim();
+      if (!text) {
+        toast("Paste something first");
+        return;
+      }
+      try {
+        const parsed = await api("/api/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+        const f = $("#form");
+        const filled = [];
+        if (parsed.weight != null) {
+          f.weight.value = parsed.weight;
+          filled.push("weight");
+        }
+        if (parsed.sleep_hours != null) {
+          f.sleep_hours.value = parsed.sleep_hours;
+          filled.push("sleep");
+        }
+        for (const key of RANGE_FIELDS) {
+          if (parsed[key] == null && parsed[`${key}_min`] == null) continue;
+          f[key].value = formatRangeField(parsed, key);
+          filled.push(key);
+        }
+        if (!filled.length) {
+          toast("Couldn't find metrics in paste");
+          return;
+        }
+        toast("Filled: " + filled.join(", "));
+      } catch (err) {
+        toast(String(err.message || err));
+      }
+    });
+
+    $("#copyYesterday").addEventListener("click", async () => {
+      const day = $("#form").date.value || todayISO();
+      const prev = shiftISO(day, -1);
+      try {
+        const data = await api(`/api/days/${prev}`);
+        const has = [...RANGE_FIELDS, "training", "notes"].some(
+          (k) => data[k] != null && data[k] !== ""
+        );
+        if (!has) {
+          toast("Nothing to copy from " + prev);
+          return;
+        }
+        const f = $("#form");
+        for (const key of RANGE_FIELDS) {
+          f[key].value = formatRangeField(data, key);
+        }
+        f.training.value = data.training ?? "";
+        f.notes.value = data.notes ?? "";
+        updateTodayTarget();
+        $("#dayStatus").textContent = `Copied macros & training from ${prev}. Save when ready.`;
+        toast("Copied from " + prev);
+      } catch (err) {
+        toast(String(err.message || err));
+      }
+    });
+
+    $("#phaseSelect").addEventListener("change", async (e) => {
+      if (!phasesCfg.phases.length) return;
+      phasesCfg.active_id = e.target.value;
+      try {
+        const saved = await api("/api/phases", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(phasesCfg),
+        });
+        applyPhasesCfg(saved);
+        toast("Active phase: " + (activePhase()?.name || ""));
+        await refresh();
+      } catch (err) {
+        toast(String(err.message || err));
+      }
+    });
+
+    $("#addPhase").addEventListener("click", () => {
+      phasesCfg.phases = readPhaseEditor();
+      phasesCfg.phases.push(emptyPhase("New phase"));
+      if (!phasesCfg.active_id) phasesCfg.active_id = phasesCfg.phases[0].id;
+      renderPhaseEditor();
+      syncPhaseSelect();
+    });
+
+    $("#addPresets").addEventListener("click", () => {
+      phasesCfg.phases = readPhaseEditor();
+      const presets = [
+        { name: "Cutting", training: { calories: 2000, protein: 160 }, rest: { calories: 1800, protein: 150 } },
+        { name: "Lean bulk", training: { calories: 2800, protein: 170 }, rest: { calories: 2500, protein: 160 } },
+        { name: "Maintenance", training: { calories: 2400, protein: 150 }, rest: { calories: 2200, protein: 140 } },
+      ];
+      const existing = new Set(phasesCfg.phases.map((p) => p.name.toLowerCase()));
+      for (const p of presets) {
+        if (existing.has(p.name.toLowerCase())) continue;
+        phasesCfg.phases.push({
+          ...emptyPhase(p.name),
+          training: p.training,
+          rest: p.rest,
+        });
+      }
+      if (!phasesCfg.active_id && phasesCfg.phases.length) {
+        phasesCfg.active_id = phasesCfg.phases[0].id;
+      }
+      renderPhaseEditor();
+      syncPhaseSelect();
+      renderPhaseSummary();
+      toast("Presets added — tweak numbers and Save phases");
+    });
+
+    $("#phaseList").addEventListener("click", (e) => {
+      const btn = e.target.closest(".phase-del");
+      if (!btn) return;
+      const idx = Number(btn.dataset.idx);
+      const phases = readPhaseEditor();
+      const removed = phases.splice(idx, 1)[0];
+      phasesCfg.phases = phases;
+      if (removed && phasesCfg.active_id === removed.id) {
+        phasesCfg.active_id = phases[0]?.id || null;
+      }
+      renderPhaseEditor();
+      syncPhaseSelect();
+      renderPhaseSummary();
+    });
+
+    $("#savePhases").addEventListener("click", async () => {
+      phasesCfg.phases = readPhaseEditor();
+      if (phasesCfg.phases.length && !phasesCfg.phases.some((p) => p.id === phasesCfg.active_id)) {
+        phasesCfg.active_id = phasesCfg.phases[0].id;
+      }
+      try {
+        const saved = await api("/api/phases", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(phasesCfg),
+        });
+        applyPhasesCfg(saved);
+        toast("Phases saved");
+        await refresh();
+      } catch (err) {
+        toast(String(err.message || err));
+      }
+    });
+
+    $("#form").training.addEventListener("input", updateTodayTarget);
+
+    $("#form").date.addEventListener("change", () => {
+      loadDay().catch((err) => toast(String(err.message || err)));
+    });
+
+    loadDay()
+      .then(refresh)
+      .catch((err) => toast(String(err.message || err)));
+  </script>
+</body>
+</html>
